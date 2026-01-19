@@ -20,3 +20,8 @@ incident_formatter_agent = Agent(
     instructions = incident_agent_instructions,
     output_type = Incident
 )
+
+incident_formatter_tool = incident_formatter_agent.as_tool(
+    tool_name="incident_formatter_tool", #No spaces allowed
+    tool_description="Use this tool for formatting incidents"
+)

@@ -16,3 +16,8 @@ feedback_formatter_agent = Agent(
     instructions = "feedback_formatter_instructions",
     output_type=Feedback
 )
+
+feedback_formatter_tool = feedback_formatter_agent.as_tool(
+    tool_name="feedback_formatter_tool", #No spaces allowed
+    tool_description="Use this tool for formatting Feedbacks",
+)

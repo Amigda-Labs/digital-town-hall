@@ -1,6 +1,8 @@
 from agents import Agent
-from town_hall_agents.incident_formatter_agent import incident_formatter_agent
-from town_hall_agents.feedback_formatter_agent import feedback_formatter_agent
+from town_hall_agents import conversation_formatter_agent
+#from town_hall_agents.incident_formatter_agent import incident_formatter_agent
+#from town_hall_agents.feedback_formatter_agent import feedback_formatter_agent
+from town_hall_agents.conversation_formatter_agent import conversation_formatter_agent
 from town_hall_agents.insights_agent import insights_agent
 
 triage_agent_instructions = """
@@ -14,5 +16,5 @@ If the message is about asking insights, pass the message/inquiry to the insight
 triage_agent = Agent(
     name = "Triage Agent",
     instructions=triage_agent_instructions,
-    handoffs=[incident_formatter_agent, feedback_formatter_agent, insights_agent]
+    handoffs=[conversation_formatter_agent, insights_agent],
 )
