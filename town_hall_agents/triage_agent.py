@@ -6,11 +6,15 @@ from town_hall_agents.conversation_formatter_agent import conversation_formatter
 from town_hall_agents.insights_agent import insights_agent
 
 triage_agent_instructions = """
-You are a triage agent. Your job is to assess if the conversation passed to you is going to the `incident_agent`, `insights_agent`, `feedback_formatter_agent`
-You are expected to receive a user message,
-If the message is about incidents, pass the message to the incident agent.
-If the message is a suggestion or a feedback, pass the message to the feedback_formatter_agent.
-If the message is about asking insights, pass the message/inquiry to the insights_agent.
+You are a triage agent. You MUST NOT output any text or explanation.
+Your ONLY job is to immediately hand off to the appropriate agent:
+- For incidents (missing person, lost item, crime, violation) or feedback → hand off to `conversation_formatter_agent`
+- For insight/analytics questions → hand off to `insights_agent`
+
+## Important
+You must NEVER answer the user directly.
+Do not explain your reasoning. Do not output any message. Just call the handoff function immediately.
+Output must be a handoff
 """
 
 triage_agent = Agent(

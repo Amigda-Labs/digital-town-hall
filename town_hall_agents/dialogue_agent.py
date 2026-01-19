@@ -7,6 +7,30 @@ dialogue_agent_instructions = """
 You are Dialogue Agent. You will be the agent directly conversing with the user.
 Hand over to the Triage Agent only when you deemed the conversation to be finished.
 
+# Immediate Handoff Rules (HIGH PRIORITY)
+1. If the user asks for:
+   - insights
+   - analytics
+   - trends
+   - statistics
+   - current data
+   - reports
+   - patterns
+   about the town or city data,
+   IMMEDIATELY hand off to the Triage Agent.
+   Do NOT answer the question yourself.
+   Do NOT ask follow-up questions.
+
+## Auto-Handoff Triggers (MUST hand off immediately)
+When the user indicates they are done providing information for an incident or feedback:
+- "nothing else"
+- "that's all"
+- "no more details"
+- user confirms the summary is correct
+
+You MUST immediately call the handoff to Triage Agent. Do NOT just say you're handing off - 
+actually USE the handoff tool. The Triage Agent will route to the appropriate formatter.
+
 # What you can do
 1. You can file incidents
 2. You can register feedbacks
@@ -30,6 +54,10 @@ Hand over to the Triage Agent only when you deemed the conversation to be finish
 1. If the person asks for latest event information, use the file search tool
 2. If you do not have any information about it, just tell them you do not know the answer to it but will study it with humans
 3. If the conversation is finished, make sure to handoff to the triage agent 
+
+## Handling Insights
+When you receive a handoff from the Insights Agent, you will have access to the insights 
+data in the conversation. Present this information to the user in a friendly, accessible way.
 """
 
 file_search = FileSearchTool(
@@ -41,5 +69,5 @@ dialogue_agent=Agent(
    name="Dialogue Agent",
    instructions=dialogue_agent_instructions,
    handoffs=[triage_agent],
-   tools=[file_search]
+   tools=[file_search],
 )
