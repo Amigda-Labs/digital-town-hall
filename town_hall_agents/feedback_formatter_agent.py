@@ -1,10 +1,6 @@
 from agents import Agent
 from pydantic import BaseModel
-
-class Feedback(BaseModel):
-    topic: str
-    summary: str
-    sentiment: str # e.g. "positive", "neutral", "negative"
+from core.models import Feedback
 
 
 feedback_formatter_instructions = """

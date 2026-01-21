@@ -1,32 +1,11 @@
 from agents import Agent
 from pydantic import BaseModel
-from typing import Literal
+
 
 from town_hall_agents.feedback_formatter_agent import feedback_formatter_tool
 from town_hall_agents.incident_formatter_agent import incident_formatter_tool
 
-class Conversation(BaseModel):
-    #Topics
-    topics: list[str]
-    primary_topic: str
-    #Analytical Signals
-    topic_shift_count: int
-    turn_count: int
-    # Interventions
-    handoff_count: int 
-    #Category
-    conversation_type: Literal["incident","feedback","inquiry","other"]
-    #Sentiments
-    sentiment_start: float
-    sentiment_end: float
-    sentiment_trend: float #Quantitative
-    sentiment_direction: Literal["up", "down", "flat"] #Qualitative
-    #Outcome
-    resolved: bool
-
-    # To be added soon:
-    # avg_response_time
-    # message_count
+from core.models import Conversation
 
 
 conversation_formatter_agent_instructions = """
