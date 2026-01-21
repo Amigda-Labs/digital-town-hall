@@ -1,4 +1,6 @@
 from dotenv import load_dotenv
+
+from core.context import TownHallContext
 load_dotenv()
 
 import asyncio
@@ -9,7 +11,12 @@ from agents import run_demo_loop
 from town_hall_agents import dialogue_agent
 
 async def main():
-    await run_demo_loop(dialogue_agent)
+    context = TownHallContext()
+
+    await run_demo_loop(
+        dialogue_agent,
+        context=context,
+        )
 
 if __name__ == "__main__":
     asyncio.run(main())
