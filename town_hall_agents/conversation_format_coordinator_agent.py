@@ -1,10 +1,9 @@
 from agents import Agent
-from pydantic import BaseModel
-
 
 from town_hall_agents.feedback_formatter_agent import feedback_formatter_tool
 from town_hall_agents.incident_formatter_agent import incident_formatter_tool
 from town_hall_agents.conversation_summarizer_agent import conversation_summarizer_tool
+from town_hall_agents.hooks import ConversationFormatterHooks
 
 
 conversation_format_coordinator_agent_instructions = """
@@ -24,7 +23,8 @@ Use both the `feedback_formatter_tool` and the `incident_formatter_tool` if the 
 """
 
 conversation_format_coordinator_agent = Agent(
-    name = "Conversation Format Coordinator Agent",
-    instructions = conversation_format_coordinator_agent_instructions,
-    tools=[feedback_formatter_tool, incident_formatter_tool, conversation_summarizer_tool]
+    name="Conversation Format Coordinator Agent",
+    instructions=conversation_format_coordinator_agent_instructions,
+    tools=[feedback_formatter_tool, incident_formatter_tool, conversation_summarizer_tool],
+    hooks=ConversationFormatterHooks()
 )

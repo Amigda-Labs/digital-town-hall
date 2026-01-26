@@ -1,5 +1,4 @@
 from agents import Agent
-from pydantic import BaseModel
 from core.models import Feedback
 
 
@@ -8,12 +7,12 @@ You are a feedback formatter agent. Your role is to convert the customer's feedb
 """
 
 feedback_formatter_agent = Agent(
-    name = "Feedback Formatter Agent",
-    instructions = "feedback_formatter_instructions",
+    name="Feedback Formatter Agent",
+    instructions=feedback_formatter_instructions,
     output_type=Feedback
 )
 
 feedback_formatter_tool = feedback_formatter_agent.as_tool(
-    tool_name="feedback_formatter_tool", #No spaces allowed
+    tool_name="feedback_formatter_tool",
     tool_description="Use this tool for formatting Feedbacks",
 )
