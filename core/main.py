@@ -2,25 +2,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import asyncio
-from agents import Runner, SQLiteSession, trace
+from agents import Runner, trace
 from core.context import TownHallContext
-import uuid
-
+from agents import OpenAIConversationsSession
 
 # Import from package (not submodule) to ensure __init__.py runs first
 # See: docs/circular-imports.md#package-import-vs-submodule-import
 from town_hall_agents import dialogue_agent
+
+from openai.types.responses import ResponseTextDeltaEvent
 
 
 async def main():
     context = TownHallContext()
     
     # Create a persistent session - conversation history saved to conversations.db
-    session_id = f"town_hall_{uuid.uuid4().hex[:8]}"
-    session = SQLiteSession(session_id, "conversations.db")
+    session = OpenAIConversationsSession()
 
     print("=== Town Hall Session Started ===")
-    print(f"Session ID: {session_id}")
     print("Type 'exit' or 'quit' to end the conversation.\n")
     
     current_agent = dialogue_agent
@@ -29,7 +28,7 @@ async def main():
     # Wrap entire conversation in a trace for full span coverage
     # All Runner.run() calls within this block will be part of one trace
     # View traces at: https://platform.openai.com/traces
-    with trace(workflow_name, group_id=session_id):
+    with trace(workflow_name):
         while True:
             try:
                 user_input = input(" > ")
@@ -43,17 +42,20 @@ async def main():
                 continue
             
             # Run with session - history is automatically managed
-            result = await Runner.run(
+            result = Runner.run_streamed(
                 current_agent,
                 user_input,
                 session=session,
                 context=context,
             )
             
-            if result.final_output is not None:
-                print(result.final_output)
+            # Stream response as it's generated
+            async for event in result.stream_events():
+                if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                    print(event.data.delta, end="", flush=True)
             
-            # Support agent handoffs
+            print()  # New line after response completes
+            
             current_agent = result.last_agent
     
     print("\n=== Session Ended ===")
