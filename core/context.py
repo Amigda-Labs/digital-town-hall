@@ -15,6 +15,9 @@ class AgentStage(str, Enum):
     FEEDBACK_FORMATTING = "feedback_formatting"
 
 class TownHallContext(BaseModel):
+    # Session identifier (passed to all agents and stored with incidents/feedback)
+    session_id: str
+    
     # Stage Tracking (for prompt prefixes and for special cases)
     agent_stage: AgentStage = AgentStage.DIALOGUE
 

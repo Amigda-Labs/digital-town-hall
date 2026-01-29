@@ -1,23 +1,34 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import os
 import asyncio
 from agents import Runner, trace
 from core.context import TownHallContext
-from agents import OpenAIConversationsSession
+from core.database import init_db, DATABASE_URL
+from agents.extensions.memory import SQLAlchemySession
 
 # Import from package (not submodule) to ensure __init__.py runs first
 # See: docs/circular-imports.md#package-import-vs-submodule-import
 from town_hall_agents import dialogue_agent
 
 from openai.types.responses import ResponseTextDeltaEvent
+import uuid
 
 
 async def main():
-    context = TownHallContext()
+    # Initialize database tables (creates incidents and feedback tables if they don't exist)
+    await init_db()
     
-    # Create a persistent session - conversation history saved to conversations.db
-    session = OpenAIConversationsSession()
+    session_id = f"user-{uuid.uuid4()}"
+    context = TownHallContext(session_id=session_id)
+    # Create a persistent session using SQLAlchemy
+    # Conversation history is saved to the configured database
+    session = SQLAlchemySession.from_url(
+        session_id,  # User/session identifier. Either static or dynamically generated per session.
+        url=DATABASE_URL,
+        create_tables=True,  # Auto-create tables on first run
+    )
 
     print("=== Town Hall Session Started ===")
     print("Type 'exit' or 'quit' to end the conversation.\n")

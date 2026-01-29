@@ -3,6 +3,7 @@ from core.models import Incident
 from core.context import TownHallContext
 from agents import Runner
 from core.context import AgentStage
+from core.database import save_incident
 
 
 incident_agent_instructions = """
@@ -47,8 +48,9 @@ async def incident_formatter_tool(
     ctx.context.incident_processed = True
     print("Incident is now stored in context")
     
-    # TODO: Persist incident to database when persistence layer is ready
-    print("Database persistence point: incident ready for upload")
+    # Persist incident to database (session_id passed separately as metadata)
+    db_incident = await save_incident(incident, session_id=ctx.context.session_id)
+    print(f"Incident saved to database with ID: {db_incident.id}")
 
     return incident
 
