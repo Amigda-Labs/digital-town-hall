@@ -106,7 +106,7 @@ data: [DONE]
 ```
 
 ---
-### Additional Notes:
+#### Additional Notes:
 * What is `CORS?` - browser security rule that controls which websites are allowed to talk to your backend API.
 
 #### Success Criteria for Phase 1
@@ -117,3 +117,70 @@ data: [DONE]
 * CORS headers are present (check with browser DevTools later)
 
 
+
+## Phase 2
+
+After applying the code changes:
+
+### Step 1: Start the server
+```
+uv run uvicorn api:app --reload --port 8000
+```
+### Step 2: Test with a chat message
+Open a new terminal and try this:
+(Note: Enter them line by line "\" means that this command continue to the next line, enter the message for every "\")
+```curl
+curl -X POST http://localhost:8000/chat \                                                                                                                   
+    -H "Content-Type: application/json" \                                                                                                                     
+    -d '{"message": "Hello, I want to report a pothole on Main Street"}' \                                                                                    
+    -N
+```
+
+### Step 3: Test session persistence
+Send a follow-up message with the same session_id:
+
+#### First message - creates session
+```            
+  curl -X POST http://localhost:8000/chat \
+    -H "Content-Type: application/json" \
+    -d '{"message": "Hi there", "session_id": "test-user-123"}' \  
+    -N
+```
+
+#### Second message - reuses session (should remember context)
+```                                                                                               
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What did I just say?", "session_id": "test-user-123"}' \
+  -N
+```
+
+#### Third message - reuses session (should remember context and should trigger the function tools, also look at the openai traces)
+```
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "hi there i would like to give some feedback, I would like to suggest we should have lockers in ginza station becaause people shop there more, it’s hard to bring your shopping bags everywhere. My name is jao garcia. I have nothing else to say?", "session_id": "test-user-123"}' \
+  -N
+```
+
+### Step 4: Check active sessions
+```
+curl http://localhost:8000/sessions
+```
+Should show all active session IDs.
+### Step 5: Verify Database
+Your incidents/feedback should be saved to the database. In the example from the third message, a feedback should be stored. You can check this in your database (Supabase)
+
+| Phase 1         | Phase 2                    |
+|-----------------|----------------------------|
+| Echo server     | Real agents                |
+| Fake streaming  | Actual LLM streaming       |
+| No memory       | Session persistence        |
+| No database     | Saves to Supabase / SQLite |
+
+### Trouble Shoot: 
+- if there are missing modules not found in openai agents, just remove the package you have and install then install them again.
+```
+uv remove openai-agents
+uv add "openai-agents[sqlalchemy]"
+```
