@@ -184,3 +184,11 @@ Your incidents/feedback should be saved to the database. In the example from the
 uv remove openai-agents
 uv add "openai-agents[sqlalchemy]"
 ```
+
+#### Additional Notes:
+- If server restarts, the session list will be empty
+- Cannot pull conversations since there is no conversations database. 
+- You can track conversations in OpenAI's platform
+- You can add trace metadata in order to track sessions
+- It is better to only use the group_id for identifying users, and session_id as metadata for every conversation.
+- If server restarts, context will be empty. Additional testing for context overlapping is also needed. 
