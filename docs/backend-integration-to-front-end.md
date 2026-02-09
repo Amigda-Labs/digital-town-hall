@@ -192,3 +192,174 @@ uv add "openai-agents[sqlalchemy]"
 - You can add trace metadata in order to track sessions
 - It is better to only use the group_id for identifying users, and session_id as metadata for every conversation.
 - If server restarts, context will be empty. Additional testing for context overlapping is also needed. 
+
+
+
+# Phase 3 Features Added:
+### 1. Session Management Endpoints
+
+- **POST** `/sessions/create` — Create a new session
+- **GET** `/sessions/{session_id}` — Get session details
+- **DELETE** `/sessions/{session_id}` — Delete a session
+- **GET** `/sessions?user_id=xxx` — List all sessions (optionally filtered by user)
+
+### 2. Anonymous User Support
+
+- If `user_id` is not provided, generate `anonymous-{uuid}`
+- Frontend stores this ID in `localStorage`
+- All sessions from the same browser share the same `user_id`
+
+### 3. Tracing with Metadata
+
+- Each trace includes:
+  - `session_id`
+  - `user_id`
+  - `group_id`
+  - `message_count`
+- `group_id` groups all sessions belonging to the same user
+- View traces at: https://platform.openai.com/traces
+
+
+## Testing of Phase 3 – Session & Conversation Validation
+
+This document outlines the test cases for validating session creation, anonymous user handling, concurrent conversations, and session listing behavior in the backend.
+
+---
+
+### Test 1: Create Anonymous User Session
+
+Create a session without providing a `user_id`.
+
+#### Request
+
+```bash
+curl -X POST http://localhost:8000/sessions/create \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+#### Expected Result
+
+* The response includes a generated `user_id`
+* Format: `anonymous-<uuid>`
+* This `user_id` represents an anonymous user and can be reused by the frontend (e.g., stored in `localStorage`)
+
+---
+
+### Test 2: Create Logged-In User Session
+
+Create a session for a known, logged-in user.
+
+#### Request
+
+```bash
+curl -X POST http://localhost:8000/sessions/create \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "john-doe-123"}'
+```
+
+#### Expected Result
+
+* The session is created and associated with `user_id = john-doe-123`
+* The returned `session_id` is linked to this user
+* Multiple sessions can exist for the same user
+
+---
+
+### Test 3: Two Concurrent Conversations
+
+Validate that two users can have independent, simultaneous conversations.
+
+---
+
+#### Terminal 1: User Alice
+
+##### Create Session
+
+```bash
+SESSION_1=$(curl -s -X POST http://localhost:8000/sessions/create \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "alice"}' | jq -r '.session_id')
+```
+
+##### Send Chat Message
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d "{\"message\": \"Hi I'm Alice\", \"session_id\": \"$SESSION_1\"}" \
+  -N
+```
+
+```bash
+SESSION_2=$(curl -s -X POST http://localhost:8000/sessions/create \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "alice"}' | jq -r '.session_id')
+```
+
+##### Send Chat Message
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d "{\"message\": \"Hi I'm still Alice\", \"session_id\": \"$SESSION_2\"}" \
+  -N
+```
+---
+
+#### Terminal 2: User Bob
+
+##### Create Session
+
+```bash
+SESSION_2=$(curl -s -X POST http://localhost:8000/sessions/create \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "bob"}' | jq -r '.session_id')
+```
+
+#### Send Chat Message
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d "{\"message\": \"Hi I'm Bob\", \"session_id\": \"$SESSION_2\"}" \
+  -N
+```
+
+#### Expected Result
+
+* Alice and Bob receive independent responses
+* No message leakage between sessions
+* Streaming responses (`-N`) work concurrently
+
+---
+
+### Test 4: View All Sessions for a User
+
+Retrieve all sessions associated with a specific user.
+
+#### Request
+
+```bash
+curl "http://localhost:8000/sessions?user_id=alice"
+```
+
+#### Expected Result
+
+* Returns a list of all sessions associated with `user_id = alice`
+* Sessions are grouped under the same user
+* Confirms correct session-to-user mapping
+
+---
+
+## Summary
+
+This test phase verifies:
+
+* Anonymous and authenticated session creation
+* Stable `user_id` → `session_id` relationships
+* Safe concurrent conversations
+* Accurate session listing per user
+
+All tests passing indicates Phase 3 session management is functioning as expected.
+
