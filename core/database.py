@@ -92,7 +92,7 @@ async def save_incident(incident, session_id: str) -> IncidentModel:
             location=incident.location,
             person_involved=incident.person_involved,
             reporter_name=incident.reporter_name,
-            severity_level=incident.serverity_level,  # Note: matches typo in Pydantic model
+            severity_level=incident.severity_level,  # Note: matches typo in Pydantic model
         )
         session.add(db_incident)
         await session.commit()

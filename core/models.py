@@ -9,20 +9,12 @@ class Incident(BaseModel):
     location: str
     person_involved: str
     reporter_name: str | None
-    serverity_level: int
+    severity_level: int
 
 class Feedback(BaseModel):
     topic: str
     summary: str
     sentiment: Literal["positive", "neutral", "negative"]
-
-class Conversation(BaseModel):
-    #Topics
-    topics: list[str]
-    primary_topic: str
-    #Analytical Signals
-    topic_shift_count: int
-    turn_count: int
 
 class Conversation(BaseModel):
     #Topics

@@ -12,7 +12,7 @@ You are a feedback formatter agent. Your role is to convert the customer's feedb
 
 feedback_formatter_agent = Agent(
     name = "Feedback Formatter Agent",
-    instructions = "feedback_formatter_instructions",
+    instructions = feedback_formatter_instructions,
     output_type=Feedback
 )
 
