@@ -1,9 +1,10 @@
-# SQLAlchemy Guide for Beginners
+# SQLAlchemy Guide for Beginners 
 
-This guide explains how SQLAlchemy works in the Digital Town Hall project, covering database connections, ORM models, and session persistence.
+This guide explains how session management for **production** works in the Digital Town Hall project. This guide will be using SQLAlchemySession to help manage the session. This covers database connections, ORM models, and session persistence.
 
 ## Table of Contents
-- [What is SQLAlchemy?](#what-is-sqlalchemy)
+- [Database Storage Architecture](#database-storage-architecture)
+- [General Concept](#general-concept)
 - [SQLAlchemy vs Database Drivers](#sqlalchemy-vs-database-drivers)
 - [What are ORM Models?](#what-are-orm-models)
 - [Connection Strings Explained](#connection-strings-explained)
@@ -12,18 +13,92 @@ This guide explains how SQLAlchemy works in the Digital Town Hall project, cover
 - [Project Structure](#project-structure)
 
 ---
+## Database Storage Architecture
+We are using two different implementations that will upload data to our database. Both relate to SQLAlchemy, but they serve different purposes. 
 
-## What is SQLAlchemy?
+1. **Agents SDK SQLAlchemySession (Conversation Memory)**
+- We use the SQLAlchemySession provided by the OpenAI Agents SDK to automatically store agent conversations — including session state and message history. The SDK manages this internally and requires no manual schema handling from us.
+```python
+from agents.extensions.memory import SQLAlchemySession
+```
 
-SQLAlchemy is a Python library that lets you interact with databases using Python code instead of writing raw SQL queries.
+2. **SQLAlchemy ORM (Application Data Storage)** 
+- We use the official SQLAlchemy ORM library to define our own database models and store structured output data (e.g., incidents and feedback). Here, we fully control the schema, tables, and how records are saved.  
+```python
+from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, Text
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+```
 
-**Without SQLAlchemy:**
+
+## General Concept 
+For data to be stored in the database, it must be **committed** through a SQLAlchemy session.  
+SQLAlchemy does not write directly to the database when you create an object — it only prepares it.  
+The actual database write happens during the commit step.
+
+The typical flow is:
+
+1. Provide the database URL  
+2. Create a SQLAlchemy engine  
+3. Create a session using the engine  
+4. Add objects to the session  
+5. Commit the session to persist the data
+
+If you use the SQLAlchemy Extension by openai, you would just have to provide the database url and it will automatically upload the `agent_sessions` and `agent_messages` by default. The extension automatically commits the session to your database for every run.
+
+```python
+from agents.extensions.memory import SQLAlchemySession
+
+# Create session using database URL
+    session = SQLAlchemySession.from_url(
+        "user-123",
+        url="sqlite+aiosqlite:///:memory:",
+        create_tables=True
+    )
+# Refer to `src/agents/extensions/memory/sqlalchemy_session.py` from the SDK extension if you want to specifically change names or configure table settings
+```
+
+If you are storing structured output in a database, it is ideal to validate 
+your data using Pydantic BaseModels, then map and persist it through 
+SQLAlchemy ORM models (which inherit from DeclarativeBase).
+
+In the Town Hall project, we want to store the structured outputs of specific agents. 
+These structured outputs are returned by `@function_tool` decorated functions — 
+specifically `feedback_formatter_tool` and its Incident counterpart. Each tool runs 
+a nested agent (e.g., `feedback_formatter_agent`) whose `final_output` is a validated 
+Pydantic model (e.g., `Feedback`), which is then persisted to the database via a 
+`save_feedback()` call before being returned.
+
+**High level flow**
+→ `@function_tool` → runs nested agent → returns Pydantic model (`Feedback` / `Incident`)
+→ passed to `save_feedback()` / `save_incident()` (From the database.py that contains the SQLAlchemy engine)
+→ fields mapped to `FeedbackModel` / `IncidentModel`
+→ added to `AsyncSession` → committed to database → refreshed with generated `id`
+
+
+**Why have Pydantic models and ORM models separately?**
+This enforces a clear separation of concerns:
+
+- **Pydantic models** — define the agent's structured output (validation, typing, AI-facing shape)
+- **ORM models** — define the database table structure (persistence, DB-facing shape)
+
+Keeping them separate means changes to one don't break the other.
+
+**Why use not use only OpenAI SQLAlchemy Extension alone? why still use the Original SQLAlchemy**
+Merging them would be problematic because the SDK's session is not designed to store your custom structured outputs, and forcing your ORM models into it would couple your application data to the SDK's internal memory mechanism — making it fragile if the SDK changes. Keeping them separate means your conversation memory and your application data are independently managed, with no risk of one breaking the other.
+
+**The Problem Without SQLAlchemy**
+To save data to a database, you'd normally have to write raw SQL — a separate 
+query language with its own syntax, separate from your Python code:
 ```sql
 INSERT INTO incidents (incident_type, description, location) 
 VALUES ('pothole', 'Big hole on Main St', 'Tokyo');
 ```
+This means switching between two languages, and any typo or mismatch between 
+your Python data and your SQL query can cause errors.
 
-**With SQLAlchemy:**
+**The Solution With SQLAlchemy**
+SQLAlchemy lets you save data using plain Python objects instead — no SQL required:
 ```python
 incident = IncidentModel(
     incident_type="pothole",
@@ -33,24 +108,41 @@ incident = IncidentModel(
 session.add(incident)
 await session.commit()
 ```
-
-SQLAlchemy translates your Python objects into SQL queries automatically.
-
----
+SQLAlchemy translates your Python objects into the equivalent SQL queries automatically, 
+keeping everything in one language and reducing the chance of errors.
 
 ## SQLAlchemy vs Database Drivers
 
 Think of it as a two-layer system:
-
 ```
 Your Python Code
        ↓
-SQLAlchemy (translates Python → SQL)
+SQLAlchemy (translates Python objects → SQL queries)
        ↓
-Database Driver (sends SQL over network)
+Database Driver (knows how to "talk" to a specific database)
        ↓
 Database (PostgreSQL, SQLite, MySQL, etc.)
 ```
+
+**SQLAlchemy** only handles the translation — it converts your Python objects 
+into SQL queries, but it doesn't know how to deliver them to a specific database.
+
+**The Database Driver** is the adapter that handles the actual communication. 
+Each database has its own protocol (its own "language" for receiving connections 
+and queries), so you need a driver that speaks that specific protocol.
+
+For example:
+- `aiosqlite` — driver for SQLite
+- `asyncpg` — driver for PostgreSQL
+- `aiomysql` — driver for MySQL
+
+This is why in `database.py` the connection URL is:
+```python
+"sqlite+aiosqlite:///town_hall.db"
+ ↑               ↑
+ database        driver
+```
+SQLAlchemy uses the URL to know which driver to hand off to once the SQL is ready.
 
 ### Why Both Are Needed
 
@@ -67,7 +159,7 @@ Database (PostgreSQL, SQLite, MySQL, etc.)
 | PostgreSQL | `asyncpg` | `pip install asyncpg` |
 | MySQL | `aiomysql` | `pip install aiomysql` |
 
-**SQLAlchemy is the translator, the driver is the messenger.**
+*SQLAlchemy is the translator, the driver is the messenger.*
 
 ---
 
@@ -194,6 +286,8 @@ Supabase provides two connection strings in **Connect** → **ORMs**:
 |------|------|----------|
 | **Connection Pooling** | `6543` | Production apps, many simultaneous users |
 | **Direct Connection** | `5432` | Database migrations, admin tasks, development |
+
+For migrations and schema changes you want the direct connection, because PgBouncer in transaction mode can swap your connection to a different backend mid-migration — and when that happens, that new connection has no memory of what the previous session set up, like prepared statements, advisory locks, or session settings, which can cause your migration tool to fail or behave unpredictably.
 
 ### Which Should You Use?
 
