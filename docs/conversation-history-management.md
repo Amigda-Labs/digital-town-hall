@@ -133,15 +133,18 @@ async def main():
 **How it works**: The SDK automatically stores and retrieves conversation history using a Session object.
 
 **Storage**: Depends on session type:
-- `SQLiteSession` - SQLite database (in-memory or file)
-- `SQLAlchemySession` - Any SQLAlchemy-supported database (PostgreSQL, MySQL, etc.)
-- `EncryptedSession` - Encrypted wrapper with optional TTL
+- 2.1`SQLiteSession` - SQLite database (in-memory or file)
+- 2.2 `OpenAIConversationSession` - Stores conversation history on OpenAI Servers
+- 2.3 `SQLAlchemySession` - Any SQLAlchemy-supported database (PostgreSQL, MySQL, etc.) See [SQLAlchemySession](./sqlalchemy-guide.md)
+- 2.4 `EncryptedSession` - Encrypted wrapper with optional TTL
 
 **Expiration**: Depends on configuration:
 - In-memory SQLite: Lost when process ends
 - File-based SQLite: Persists until deleted
 - EncryptedSession with TTL: Expires after specified duration
+- Hosted database (Supabase / AWS / Google Cloud): Persists indefinitely. Supabase free tier projects may pause after ~7 days of inactivity and wake on the next request. Cloud providers (AWS/GCP) typically do not expire but may incur charges if a paid instance is provisioned. 
 
+#### 2.1 with 2.4 `SQLiteSession` with `EncryptedSession`
 ```python
 from agents import Agent, Runner, SQLiteSession
 
@@ -166,18 +169,22 @@ result = await Runner.run(agent, "How are you?", session=session)  # Remembers!
 ```
 
 **Pros**:
-- Automatic history management
-- Persistent storage options
-- Can set TTL for expiration
-- Production-ready options
+- Works immediately with minimal code
+- Fast local reads/writes
+- Works offline
+- Ideal for development, testing, and single-machine deployments
+- File-based mode gives simple persistence
+- Easy to reset by deleting the database file
+- Optional TTL and encryption available
 
 **Cons**:
-- Requires choosing and configuring a session type
-- May need database setup
+- Not suitable for multiple servers or containers
+- Sessions tied to one machine (no horizontal scaling)
+- Not ideal for production web backends
 
 ---
 
-### 3. Server-Managed Conversations (OpenAI-Hosted)
+#### 2.2 Using OpenAIConversationSession (OpenAI-Hosted)
 
 **How it works**: OpenAI stores the conversation history on their servers.
 
@@ -187,47 +194,67 @@ result = await Runner.run(agent, "How are you?", session=session)  # Remembers!
 
 ```python
 from agents import Agent, Runner
-from openai import AsyncOpenAI
-
-client = AsyncOpenAI()
+from agents import OpenAIConversationSession
 
 async def main():
+    
+    session = OpenAIConversationsSession()
     agent = Agent(name="Assistant")
     
-    # Create a server-managed conversation
-    conversation = await client.conversations.create()
-    conv_id = conversation.id
+    with trace(workflow_name):
+        while True:
+            try:
+                user_input = input(">") #Terminal Input example
+                continue
+        
+        result = Runner.run_streamed(
+            agent,
+            user_input,
+            session=session)
     
-    # First turn - OpenAI stores the history
-    result = await Runner.run(agent, "Hello", conversation_id=conv_id)
-    
-    # Second turn - OpenAI provides the history
-    result = await Runner.run(agent, "How are you?", conversation_id=conv_id)
+        # Then Stream response if wanted
 ```
-
 **Pros**:
-- No local storage needed
-- Handles large conversations
-- Built-in compaction
+- No database to manage
+- Works immediately in serverless environments
+- Accessible across multiple instances automatically
+- Simplest deployment option
+- Good for prototypes and demos
+- Optional TTL and encryption available
 
 **Cons**:
-- Requires OpenAI API
-- Data stored on OpenAI servers
-- Subject to OpenAI's retention policies
+- Dependent on network and OpenAI availability
 
----
+#### 2.3 SQLAlchemySession (PostgreSQL/MySQL/etc.)
+See [SQLAlchemySession](./sqlalchemy-guide.) for the detailed instructions and explanations.
+
+**Pros**:
+- Production-grade persistence
+- Supports multiple servers and containers
+- Works with managed databases (PostgreSQL, MySQL, etc.)
+- Centralized storage for all users
+- Better durability and reliability
+- Can be backed up and inspected
+- Optional TTL and encryption available
+
+**Cons**: 
+- Requires database provisioning and maintenance
+- More setup complexity
+- Possible hosting costs
+- Requires connection pooling and configuration in larger deployments
+- Overkill for small or single-user applications
+
 
 ## Storage and Expiration Summary
 
-| Approach | Storage Location | Default Expiration | Can Set TTL? |
-|----------|-----------------|-------------------|--------------|
-| Manual (`to_input_list()`) | Your app's memory | When variables go out of scope | N/A (you control it) |
-| `SQLiteSession` (in-memory) | RAM | When process ends | No |
-| `SQLiteSession` (file) | Local SQLite file | Never (until deleted) | No |
-| `SQLAlchemySession` | Your database | Never (until deleted) | No |
-| `EncryptedSession` | Underlying session | Configurable TTL | Yes |
-| `OpenAIConversationsSession` | OpenAI servers | OpenAI's retention policy | No |
-| Server-managed (`conversation_id`) | OpenAI servers | OpenAI's retention policy | No |
+| Approach | Storage Location | Default Expiration 
+|----------|-----------------|-------------------|
+| Manual (`to_input_list()`) | Your app's memory | When variables go out of scope |
+| `SQLiteSession` (in-memory) | RAM | When process ends |
+| `SQLiteSession` (file) | Local SQLite file | Never (until deleted) |
+| `SQLAlchemySession` | Your database | Never (until deleted) |
+| `EncryptedSession` | Underlying session | Configurable TTL |
+| `OpenAIConversationsSession` | OpenAI servers | OpenAI's retention policy |
 
 ---
 
@@ -241,15 +268,21 @@ session = SQLiteSession("test_session")
 
 ### For Production Chat Applications
 ```python
-# Use file-based SQLite or database-backed session
-session = SQLiteSession("user_123", "conversations.db")
-
-# Or for PostgreSQL/MySQL
+# PostgreSQL/MySQL
 from agents.extensions.memory import SQLAlchemySession
 session = SQLAlchemySession.from_url(
     "user_123",
     url="postgresql+asyncpg://user:pass@localhost/db",
     create_tables=True
+)
+
+# Or for Serverless/Stateless Deployments
+from agents import Agent, Runner, OpenAIConversationsSession
+session = OpenAIConversationsSession()
+result = await Runner.run(
+    agent,
+    "What city is the Golden Gate Bridge in?",
+    session=session
 )
 ```
 
@@ -264,69 +297,18 @@ session = EncryptedSession(
     ttl=3600  # 1 hour expiration
 )
 ```
-
-### For Serverless/Stateless Deployments
-```python
-# Use OpenAI-hosted conversations
-result = await Runner.run(
-    agent, 
-    user_input, 
-    conversation_id=conv_id  # OpenAI manages storage
-)
-```
-
----
-
-## How This Relates to Function Tools
-
-When a tool like `feedback_formatter_tool` is called:
-
-1. The `conversation_format_coordinator_agent` has accumulated conversation history through handoffs
-2. This history is stored in the `input` list (as described above)
-3. The LLM sees this history and can extract information from it
-4. When the LLM calls your tool, it provides the `conversation` parameter based on what it saw
-
-```
-User talks to dialogue_agent
-         │
-         ▼
-    [input list grows]
-         │
-         ▼
-dialogue_agent hands off to triage_agent
-         │
-         ▼
-    [input list carries over]
-         │
-         ▼
-triage_agent hands off to conversation_format_coordinator_agent
-         │
-         ▼
-    [input list still has full history]
-         │
-         ▼
-LLM decides to call feedback_formatter_tool(conversation="...")
-         │
-         ▼
-    [LLM extracts 'conversation' from what it saw in the input list]
-```
-
-The LLM has access to the full conversation history through the `input` list. It uses this to provide the `conversation` parameter to your tool.
-
 ---
 
 ## References
 
 ### Official Documentation
-- [OpenAI Agents SDK - Running Agents](https://openai.github.io/openai-agents-python/running_agents/)
 - [OpenAI Agents SDK - Sessions](https://openai.github.io/openai-agents-python/sessions/)
+- [OpenAI Agents SDK - SQLAlchemy](https://openai.github.io/openai-agents-python/sessions/sqlalchemy_session/)
+- [OpenAI Agents SDK - Main ClassSQLAlchemy](https://openai.github.io/openai-agents-python/ref/extensions/memory/sqlalchemy_session/#agents.extensions.memory.sqlalchemy_session.SQLAlchemySession)
+- [SQLAlchemy - 2026](https://www.youtube.com/watch?v=Y-TxICRUy_k)
 - [OpenAI Conversation State Guide](https://platform.openai.com/docs/guides/conversation-state?api-mode=responses)
-
+- [OpenAI Agents SDK - Running Agents](https://openai.github.io/openai-agents-python/running_agents/)
 ### Source Code
 - [run.py](https://github.com/openai/openai-agents-python/blob/main/src/agents/run.py) - Runner implementation
 - [result.py](https://github.com/openai/openai-agents-python/blob/main/src/agents/result.py) - RunResult and `to_input_list()`
 - [memory/](https://github.com/openai/openai-agents-python/tree/main/src/agents/memory) - Session implementations
-
-### Related Documentation in This Project
-- [`docs/function-tool-deep-dive.md`](./function-tool-deep-dive.md) - How `@function_tool` works with context
-- [`docs/hooks-vs-nested-runs.md`](./hooks-vs-nested-runs.md) - Managing state in nested agent runs
