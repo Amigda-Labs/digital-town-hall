@@ -18,8 +18,16 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 # Database URL - same as used in main.py for consistency
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///town_hall.db")
 
-# Create async engine and session factory
-engine = create_async_engine(DATABASE_URL, echo=False)
+# Detect if using PostgreSQL (Supabase) vs SQLite
+IS_POSTGRES = DATABASE_URL.startswith("postgresql")
+
+# PgBouncer (Supabase) requires statement_cache_size=0
+# SQLite does not support connect_args with this setting
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    connect_args={"statement_cache_size": 0} if IS_POSTGRES else {},
+)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

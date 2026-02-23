@@ -11,4 +11,5 @@ dependencies = [
     "psycopg2>=2.9.11",
     "fastapi>=0.128.0",
     "openai-agents[sqlalchemy]>=0.8.0",
+    "openai-chatkit>=1.6.2",
 ]
