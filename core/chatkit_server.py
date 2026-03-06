@@ -18,6 +18,13 @@ from chatkit.types import (
     UserMessageItem,
 )
 
+from agents import Agent, Runner
+from chatkit.agents import AgentContext, simple_to_agent_input, stream_agent_response
+assistant = Agent(
+    name="assistant",
+    instructions="You are a helpful assistant.",
+    model="gpt-4.1-mini",
+)
 
 class TownHallChatKitServer(ChatKitServer[dict[str, Any]]):
     async def respond(
@@ -26,12 +33,19 @@ class TownHallChatKitServer(ChatKitServer[dict[str, Any]]):
         input_user_message: UserMessageItem | None,
         context: dict[str, Any],
     ) -> AsyncIterator[ThreadStreamEvent]:
-
-        yield ThreadItemDoneEvent(
-            item=AssistantMessageItem(
-                thread_id=thread.id,
-                id=self.store.generate_item_id("message",thread, context),
-                created_at=datetime.now(timezone.utc),
-                content=[AssistantMessageContent(text="Hello, world!")],
-            ),
+        
+        items_page = await self.store.load_thread_items(
+            thread.id,
+            after=None,
+            limit=20,
+            order="asc",
+            context=context,
         )
+
+        input_items = await simple_to_agent_input(items_page.data)
+
+        # Stream the run through ChatKit events
+        agent_context = AgentContext(thread=thread, store=self.store, request_context=context)
+        result = Runner.run_streamed(assistant, input_items, context=agent_context)
+        async for event in stream_agent_response(agent_context, result):
+            yield event
