@@ -226,7 +226,7 @@ async def main():
 - Dependent on network and OpenAI availability
 
 #### 2.3 SQLAlchemySession (PostgreSQL/MySQL/etc.)
-See [SQLAlchemySession](./sqlalchemy-guide.) for the detailed instructions and explanations.
+See [SQLAlchemySession](./sqlalchemy-guide.md) for the detailed instructions and explanations.
 
 **Pros**:
 - Production-grade persistence
