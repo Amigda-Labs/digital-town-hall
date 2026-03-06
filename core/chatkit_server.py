@@ -17,6 +17,7 @@ from chatkit.types import (
     ThreadStreamEvent,
     UserMessageItem,
 )
+import asyncio
 
 from agents import Agent, Runner
 from chatkit.agents import AgentContext, simple_to_agent_input, stream_agent_response
@@ -44,8 +45,40 @@ class TownHallChatKitServer(ChatKitServer[dict[str, Any]]):
 
         input_items = await simple_to_agent_input(items_page.data)
 
+        # Fire the title task concurrently — doesn't block the response stream
+        updating_thread_title = asyncio.create_task(
+            self._maybe_update_thread_title(thread, context)
+        )
+
         # Stream the run through ChatKit events
         agent_context = AgentContext(thread=thread, store=self.store, request_context=context)
         result = Runner.run_streamed(assistant, input_items, context=agent_context)
         async for event in stream_agent_response(agent_context, result):
             yield event
+
+        # Await here so the ThreadUpdatedEvent is emitted before the response closes
+        await updating_thread_title
+
+    async def _maybe_update_thread_title(self, thread: ThreadMetadata, context: dict) -> None:
+        if thread.title is not None:
+            return  # Already titled, skip
+
+        items = await self.store.load_thread_items(
+            thread.id, after=None, limit=6, order="desc", context=context
+        )
+
+        thread.title = await self._generate_short_title(items.data)
+        await self.store.save_thread(thread, context=context)
+
+
+    async def _generate_short_title(self, items) -> str:
+        # Use a cheap model call — gpt-4.1-mini or even gpt-4o-mini works well here
+        result = await Runner.run(
+            Agent(
+                name="title-generator",
+                instructions="Generate a concise 3-6 word title summarizing this conversation. Reply with ONLY the title, no punctuation.",
+                model="gpt-4.1-mini",
+            ),
+            input=str([item for item in items]),
+        )
+        return result.final_output.strip()
