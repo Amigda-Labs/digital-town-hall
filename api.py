@@ -69,7 +69,8 @@ chatkit_server = TownHallChatKitServer(store=store)
 @app.post("/chatkit")
 async def chatkit_endpoint(request: Request):
     """Single ChatKit endpoint — handles threads, messages, and streaming."""
-    result = await chatkit_server.process(await request.body(), context={})
+    device_id = request.headers.get("X-Device-ID")
+    result = await chatkit_server.process(await request.body(), context={"device_id": device_id})
     if isinstance(result, StreamingResult):
         return StreamingResponse(result, media_type="text/event-stream")
     return Response(content=result.json, media_type="application/json")
