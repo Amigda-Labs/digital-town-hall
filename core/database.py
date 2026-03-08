@@ -12,7 +12,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, Text, ForeignKey
+from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, Text, ForeignKey, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
@@ -84,6 +84,7 @@ class ChatKitThreadModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     status_json: Mapped[str] = mapped_column(Text, nullable=False, default='{"type":"active"}')
     metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    device_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
 
 
 class ChatKitThreadItemModel(Base):
@@ -103,6 +104,18 @@ async def init_db():
     """Create all database tables if they don't exist."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migrate existing databases: add device_id column if missing
+        if IS_POSTGRES:
+            await conn.execute(text(
+                "ALTER TABLE chatkit_threads ADD COLUMN IF NOT EXISTS device_id VARCHAR(255)"
+            ))
+        else:
+            existing = await conn.execute(text("PRAGMA table_info(chatkit_threads)"))
+            columns = [row[1] for row in existing.fetchall()]
+            if "device_id" not in columns:
+                await conn.execute(text(
+                    "ALTER TABLE chatkit_threads ADD COLUMN device_id VARCHAR(255)"
+                ))
 
 
 async def save_incident(incident, session_id: str) -> IncidentModel:

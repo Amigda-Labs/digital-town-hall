@@ -63,6 +63,7 @@ class SQLAlchemyStore(Store[dict]):
                     created_at=thread.created_at,
                     status_json=json.dumps(thread.status.model_dump()),
                     metadata_json=json.dumps(thread.metadata),
+                    device_id=context.get("device_id"),
                 )
                 session.add(row)
             else:
@@ -81,6 +82,10 @@ class SQLAlchemyStore(Store[dict]):
             ordering = (col.desc(), id_col.desc()) if desc else (col.asc(), id_col.asc())
 
             stmt = select(ChatKitThreadModel)
+
+            device_id = context.get("device_id")
+            if device_id:
+                stmt = stmt.where(ChatKitThreadModel.device_id == device_id)
 
             if after:
                 cursor_row = await session.get(ChatKitThreadModel, after)
