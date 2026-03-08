@@ -12,8 +12,14 @@ from fastapi.responses import Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from core.database import init_db, DATABASE_URL
 from chatkit.server import StreamingResult
-from core.memory_store import MemoryStore
+from core.sqlalchemy_store import SQLAlchemyStore
 from core.chatkit_server import TownHallChatKitServer
+
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,7 +63,7 @@ async def health():
     return {"status": "healthy"}
 
 # ==== Chatkit ====
-store = MemoryStore()
+store = SQLAlchemyStore()
 chatkit_server = TownHallChatKitServer(store=store)
 
 @app.post("/chatkit")

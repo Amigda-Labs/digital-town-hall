@@ -3,7 +3,6 @@ from core.models import Feedback
 from core.context import TownHallContext
 from agents import Runner
 from core.context import AgentStage
-from core.database import save_feedback
 
 
 feedback_formatter_instructions = """
@@ -43,14 +42,11 @@ async def feedback_formatter_tool(
     # Get the structured feedback output
     feedback = result.final_output
 
-    # Store in context
+    # Store in context — DB persistence is handled by TownHallChatKitServer
+    # after the full agent run completes, where thread.id is directly available.
     ctx.context.feedback = feedback
     ctx.context.feedback_processed = True
     print("Feedback is now stored in context")
-
-    # Persist feedback to database (session_id passed separately as metadata)
-    db_feedback = await save_feedback(feedback, session_id=ctx.context.session_id)
-    print(f"Feedback saved to database with ID: {db_feedback.id}")
 
     return feedback
 

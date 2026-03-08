@@ -1,8 +1,9 @@
 """
-SQLAlchemy database models and utilities for persisting Incidents and Feedback.
+SQLAlchemy database models and utilities for persisting Incidents, Feedback,
+and ChatKit threads/items.
 
 This module provides:
-- SQLAlchemy ORM models (IncidentModel, FeedbackModel) for database storage
+- SQLAlchemy ORM models for database storage
 - Async database session management
 - Helper functions to save Pydantic models to the database
 """
@@ -11,7 +12,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, Text
+from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, Text, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
@@ -72,6 +73,30 @@ class FeedbackModel(Base):
 
     def __repr__(self) -> str:
         return f"<Feedback(id={self.id}, topic={self.topic}, sentiment={self.sentiment})>"
+
+
+class ChatKitThreadModel(Base):
+    """Persists ChatKit thread metadata (title, status, etc.)."""
+    __tablename__ = "chatkit_threads"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    title: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    status_json: Mapped[str] = mapped_column(Text, nullable=False, default='{"type":"active"}')
+    metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+
+
+class ChatKitThreadItemModel(Base):
+    """Persists a single ChatKit thread item as a JSON blob."""
+    __tablename__ = "chatkit_thread_items"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    thread_id: Mapped[str] = mapped_column(
+        String(255), ForeignKey("chatkit_threads.id", ondelete="CASCADE"), index=True,
+    )
+    item_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    item_json: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 async def init_db():
