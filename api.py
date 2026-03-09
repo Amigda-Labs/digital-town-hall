@@ -10,6 +10,10 @@ load_dotenv()
 from fastapi import FastAPI, Request
 from fastapi.responses import Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from core.database import init_db, DATABASE_URL
 from chatkit.server import StreamingResult
 from core.sqlalchemy_store import SQLAlchemyStore
@@ -20,6 +24,14 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+
+
+def get_device_id_or_ip(request: Request) -> str:
+    """Use X-Device-ID header as rate limit key, fall back to IP."""
+    return request.headers.get("X-Device-ID") or get_remote_address(request)
+
+
+limiter = Limiter(key_func=get_device_id_or_ip)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,6 +45,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Digital Town Hall API", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, lambda req, exc: Response(
+    content='{"detail":"Rate limit exceeded. Please slow down."}',
+    status_code=429,
+    media_type="application/json",
+))
+app.add_middleware(SlowAPIMiddleware)
 
 # CORS configuration for frontend
 app.add_middleware(
@@ -67,6 +86,7 @@ store = SQLAlchemyStore()
 chatkit_server = TownHallChatKitServer(store=store)
 
 @app.post("/chatkit")
+@limiter.limit("15/minute")
 async def chatkit_endpoint(request: Request):
     """Single ChatKit endpoint — handles threads, messages, and streaming."""
     device_id = request.headers.get("X-Device-ID")
