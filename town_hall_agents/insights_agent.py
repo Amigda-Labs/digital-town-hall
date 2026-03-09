@@ -1,5 +1,9 @@
+import logging
+
 from agents import Agent
 from agents import function_tool
+
+logger = logging.getLogger(__name__)
 
 insights_agent_instructions = """
 You are an insights agent. You work behind the scenes to gather data.
@@ -23,7 +27,7 @@ async def giveInsights() -> str:
     """
     This tool is for showcasing insights about crime rate
     """
-    print("beep boop beep boop 🤖🤖🤖 Gathering some insights 🤖🤖🤖")
+    logger.info("giveInsights_tool_called")
     sameple_information = "City's crime rate is down by 40 percent over the week"
     #Best is to store it in a Global Context
     return sameple_information

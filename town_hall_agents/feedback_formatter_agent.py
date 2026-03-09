@@ -1,8 +1,12 @@
+import logging
+
 from agents import Agent, RunContextWrapper, function_tool
 from core.models import Feedback
 from core.context import TownHallContext
 from agents import Runner
 from core.context import AgentStage
+
+logger = logging.getLogger(__name__)
 
 
 feedback_formatter_instructions = """
@@ -28,7 +32,7 @@ async def feedback_formatter_tool(
     Args:
         conversation: The conversation text to extract feedback from.
     """
-    print("...Running Feedback formatter tool")
+    logger.info("feedback_formatter_tool_start")
     # Update stage (optional but good for tracking)
     ctx.context.agent_stage = AgentStage.FEEDBACK_FORMATTING
 
@@ -46,7 +50,7 @@ async def feedback_formatter_tool(
     # after the full agent run completes, where thread.id is directly available.
     ctx.context.feedback = feedback
     ctx.context.feedback_processed = True
-    print("Feedback is now stored in context")
+    logger.info("feedback_formatter_tool_end topic=%s sentiment=%s", feedback.topic, feedback.sentiment)
 
     return feedback
 

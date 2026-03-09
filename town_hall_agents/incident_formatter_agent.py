@@ -1,8 +1,12 @@
+import logging
+
 from agents import Agent, RunContextWrapper, function_tool
 from core.models import Incident
 from core.context import TownHallContext
 from agents import Runner
 from core.context import AgentStage
+
+logger = logging.getLogger(__name__)
 
 
 incident_agent_instructions = """
@@ -28,7 +32,7 @@ async def incident_formatter_tool(
     Args:
         conversation: The conversation text to extract incident from.
     """
-    print("...Running Incident formatter tool")
+    logger.info("incident_formatter_tool_start")
     # Update stage (optional but good for tracking)
     ctx.context.agent_stage = AgentStage.INCIDENT_FORMATTING
 
@@ -46,7 +50,7 @@ async def incident_formatter_tool(
     # after the full agent run completes, where thread.id is directly available.
     ctx.context.incident = incident
     ctx.context.incident_processed = True
-    print("Incident is now stored in context")
+    logger.info("incident_formatter_tool_end type=%s severity=%s", incident.incident_type, incident.severity_level)
 
     return incident
 

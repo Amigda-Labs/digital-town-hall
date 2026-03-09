@@ -8,9 +8,12 @@ This module provides:
 - Helper functions to save Pydantic models to the database
 """
 
+import logging
 import os
 from datetime import datetime
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import String, Integer, Float, Boolean, Date, DateTime, Text, ForeignKey, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -102,6 +105,7 @@ class ChatKitThreadItemModel(Base):
 
 async def init_db():
     """Create all database tables if they don't exist."""
+    logger.info("init_db running migrations driver=%s", "postgresql" if IS_POSTGRES else "sqlite")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         # Migrate existing databases: add device_id column if missing
@@ -143,6 +147,7 @@ async def save_incident(incident, session_id: str) -> IncidentModel:
         session.add(db_incident)
         await session.commit()
         await session.refresh(db_incident)
+        logger.info("save_incident id=%s type=%s session=%s", db_incident.id, db_incident.incident_type, session_id)
         return db_incident
 
 
@@ -167,4 +172,5 @@ async def save_feedback(feedback, session_id: str) -> FeedbackModel:
         session.add(db_feedback)
         await session.commit()
         await session.refresh(db_feedback)
+        logger.info("save_feedback id=%s topic=%s session=%s", db_feedback.id, db_feedback.topic, session_id)
         return db_feedback

@@ -8,7 +8,10 @@ Uses the same async engine / session factory configured in core.database.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from pydantic import TypeAdapter
 from sqlalchemy import select, delete, and_
@@ -56,6 +59,7 @@ class SQLAlchemyStore(Store[dict]):
     async def save_thread(self, thread: ThreadMetadata, context: dict) -> None:
         async with AsyncSessionLocal() as session:
             row = await session.get(ChatKitThreadModel, thread.id)
+            is_new = row is None
             if row is None:
                 row = ChatKitThreadModel(
                     id=thread.id,
@@ -71,6 +75,7 @@ class SQLAlchemyStore(Store[dict]):
                 row.status_json = json.dumps(thread.status.model_dump())
                 row.metadata_json = json.dumps(thread.metadata)
             await session.commit()
+            logger.info("save_thread id=%s new=%s device=%s", thread.id, is_new, context.get("device_id"))
 
     async def load_threads(
         self, limit: int, after: str | None, order: str, context: dict
@@ -122,6 +127,7 @@ class SQLAlchemyStore(Store[dict]):
                 delete(ChatKitThreadModel).where(ChatKitThreadModel.id == thread_id)
             )
             await session.commit()
+            logger.info("delete_thread id=%s", thread_id)
 
     # ---- thread items ------------------------------------------------------
 

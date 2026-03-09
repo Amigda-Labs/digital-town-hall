@@ -46,6 +46,8 @@ class TownHallChatKitServer(ChatKitServer[dict[str, Any]]):
 
         town_hall_context = TownHallContext(session_id=thread.id)
 
+        logger.info("agent_run_start thread=%s items=%d", thread.id, len(input_items))
+
         updating_thread_title = asyncio.create_task(
             self._maybe_update_thread_title(thread, context)
         )
@@ -59,6 +61,8 @@ class TownHallChatKitServer(ChatKitServer[dict[str, Any]]):
 
         async for event in stream_agent_response(agent_context, result):
             yield event
+
+        logger.info("agent_run_end thread=%s stage=%s", thread.id, town_hall_context.agent_stage.value if town_hall_context.agent_stage else "none")
 
         # Await here so the ThreadUpdatedEvent is emitted before the response closes
         await updating_thread_title
@@ -80,6 +84,7 @@ class TownHallChatKitServer(ChatKitServer[dict[str, Any]]):
 
         thread.title = await self._generate_short_title(items.data)
         await self.store.save_thread(thread, context=context)
+        logger.info("thread_title_generated thread=%s title=%s", thread.id, thread.title)
 
 
     async def _generate_short_title(self, items) -> str:
