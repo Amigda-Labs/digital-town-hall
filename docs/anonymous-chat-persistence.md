@@ -1,5 +1,36 @@
 # Guidelines for Persisting data for anonymous users
 
+## Networking Introduction
+
+Before diving into implementation, we have to consider how to manage our **threads** in order for things not to overlap. If multiple devices are pointing to the same **thread pool**, different users' conversation histories might bleed into one another.
+
+At the networking level, the server already knows where to send responses back to — using the requester's **IP + Port** as a return address:
+
+```
+User A: 192.168.1.1:51234 → request → server responds to 192.168.1.1:51234
+User B: 192.168.1.1:57823 → request → server responds to 192.168.1.1:57823
+```
+
+Like a mailing address on an envelope — the post office doesn't need to know your name, just where to send the reply. So responding to the right person is never the problem.
+
+However, that port is **ephemeral**. The OS assigns it from a pool when the request starts, and releases it back to the pool once the request is done. The next click gets a completely different port — the server has no way to link the two:
+
+```
+Click 1: 192.168.1.1:51234 → request → response → port released
+Click 2: 192.168.1.1:58901 → request → response → port released
+                      ↑ different port, looks brand new to the server
+```
+
+It's like calling a taxi company, getting a ride, hanging up — then calling again. They have no idea it's the same person unless you give your name.
+
+This is the problem **`device_id`** solves. A persistent identifier stored on the client that survives across requests, so the server can recognize the same device and filter the right threads for them.
+
+- **Source IP + Port** → tells the server these are two separate connections (networking layer)
+- **asyncio** → the engine that juggles multiple connections concurrently (concurrency layer)
+- **Uvicorn** → translates incoming network connections into something asyncio/FastAPI can work with (the middleman/bridge)
+- **FastAPI** → your business logic, routing, what actually happens per request (application layer)
+
+
 ### Summary
 
 Use a **device-based identifier** to scope chat threads per browser/device. The frontend generates a persistent `device_id` stored in `localStorage` and sends it in the `X-Device-ID` header on every request. The backend stores and filters threads using this ID so each device only sees its own conversation history.
